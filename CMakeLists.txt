@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.19..3.27)
+
+project(
+    Chip8
+    VERSION 1.0
+    DESCRIPTION "A Chip-8 emulator written in modern C++"
+    LANGUAGES CXX
+)
+
+if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
+    message(
+        FATAL_ERROR "In-source builds are not allowed."
+    )
+endif()
+
+# Disable compiler extensions
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+include(CTest)
+
+add_subdirectory(src)
+
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR MORDERN AND BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
+
