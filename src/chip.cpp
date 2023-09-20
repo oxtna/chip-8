@@ -38,22 +38,45 @@ void Chip::ProcessInstruction(uint16_t instruction) {
     case 0x8000:
         switch (instruction & 0x000F) {
         case 0x0000:  // 8xy0 - LD Vx, Vy
+            m_V[(instruction & 0x0F00) >> 8] = m_V[(instruction & 0x00F0) >> 4];
             break;
         case 0x0001:  // 8xy1 - OR Vx, Vy
+            m_V[(instruction & 0x0F00) >> 8] |= m_V[(instruction & 0x00F0) >> 4];
             break;
         case 0x0002:  // 8xy2 - AND Vx, Vy
+            m_V[(instruction & 0x0F00) >> 8] &= m_V[(instruction & 0x00F0) >> 4];
             break;
         case 0x0003:  // 8xy3 - XOR Vx, Vy
+            m_V[(instruction & 0x0F00) >> 8] ^= m_V[(instruction & 0x00F0) >> 4];
             break;
         case 0x0004:  // 8xy4 - ADD Vx, Vy
-            break;
+        {
+            unsigned int sum =
+                m_V[(instruction & 0x0F00) >> 8] + m_V[(instruction & 0x00F0) >> 4];
+            m_V[(instruction & 0x0F00) >> 8] = sum;
+            m_V[0xF] = (sum & 0x0100) >> 8;
+        } break;
         case 0x0005:  // 8xy5 - SUB Vx, Vy
-            break;
+        {
+            bool borrowed =
+                m_V[(instruction & 0x0F00) >> 8] < m_V[(instruction & 0x00F0) >> 4];
+            m_V[(instruction & 0x0F00) >> 8] -= m_V[(instruction & 0x00F0) >> 4];
+            m_V[0xF] = borrowed ? 0 : 1;
+        } break;
         case 0x0006:  // 8xy6 - SHR Vx, Vy
+            m_V[0xF] = m_V[(instruction & 0x0F00) >> 8] & 0x01;
+            m_V[(instruction & 0x0F00) >> 8] >>= 1;
             break;
         case 0x0007:  // 8xy7 - SUBN Vx, Vy
-            break;
+        {
+            bool borrowed =
+                m_V[(instruction & 0x0F00) >> 8] > m_V[(instruction & 0x00F0) >> 4];
+            m_V[(instruction & 0x00F0) >> 4] -= m_V[(instruction & 0x0F00) >> 8];
+            m_V[0xF] = borrowed ? 0 : 1;
+        } break;
         case 0x000E:  // 8xyE - SHL Vx, Vy
+            m_V[0xF] = (m_V[(instruction & 0x0F00) >> 8] & 0x80) >> 7;
+            m_V[(instruction & 0x0F00) >> 8] <<= 1;
             break;
         }
         break;
