@@ -11,7 +11,9 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             m_display = {};
         }
         else if (instruction == 0x00EE) {  // 00EE - RET
-            // todo: return from subroutine
+            m_PC = m_stack.top();
+            m_stack.pop();
+            m_SP--;
         }
         else {  // 0nnn - SYS addr
             // jump to machine code routine at nnn
@@ -22,6 +24,9 @@ void Chip::ProcessInstruction(uint16_t instruction) {
         m_PC = instruction & 0x0FFF;
         break;
     case 0x2000:  // 2nnn - CALL addr
+        m_SP++;
+        m_stack.push(m_PC);
+        m_PC = instruction & 0x0FFF;
         break;
     case 0x3000:  // 3xkk - SE Vx, byte
         break;

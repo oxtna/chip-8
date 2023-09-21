@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <stack>
 #include <cstdint>
 
 class Chip
@@ -11,7 +12,7 @@ class Chip
   private:
     std::array<int8_t, 64 * 32> m_display;
     std::array<uint8_t, 4096> m_memory;
-    std::array<uint16_t, 16> m_stack;
+    std::stack<uint16_t> m_stack;
     // general purpose registers
     union {
         struct
