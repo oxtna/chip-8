@@ -1,7 +1,16 @@
 #include "chip.hpp"
 
 Chip::Chip()
-    : m_display{}, m_memory{}, m_stack{}, m_V{}, m_PC{}, m_I{}, m_SP{}, m_DT{}, m_ST{} {
+    : m_keyboard{},
+      m_display{},
+      m_memory{},
+      m_stack{},
+      m_V{},
+      m_PC{},
+      m_I{},
+      m_SP{},
+      m_DT{},
+      m_ST{} {
 }
 
 void Chip::ProcessInstruction(uint16_t instruction) {
@@ -29,10 +38,19 @@ void Chip::ProcessInstruction(uint16_t instruction) {
         m_PC = instruction & 0x0FFF;
         break;
     case 0x3000:  // 3xkk - SE Vx, byte
+        if (m_V[(instruction & 0x0F00) >> 8] == (instruction & 0x00FF)) {
+            m_PC += 2;
+        }
         break;
     case 0x4000:  // 4xkk - SNE Vx, byte
+        if (m_V[(instruction & 0x0F00) >> 8] != (instruction & 0x00FF)) {
+            m_PC += 2;
+        }
         break;
     case 0x5000:  // 5xy0 - SE Xv, Vy
+        if (m_V[(instruction & 0x0F00) >> 8] == m_V[(instruction & 0x00F0) >> 4]) {
+            m_PC += 2;
+        }
         break;
     case 0x6000:  // 6xkk - LD Vx, byte
         m_V[(instruction & 0x0F00) >> 8] = instruction & 0x00FF;
@@ -86,11 +104,15 @@ void Chip::ProcessInstruction(uint16_t instruction) {
         }
         break;
     case 0x9000:  // 9xy0 - SNE Vx, Vy
+        if (m_V[(instruction & 0x0F00) >> 8] != m_V[(instruction & 0x00F0) >> 4]) {
+            m_PC += 2;
+        }
         break;
     case 0xA000:  // Annn - LD I, addr
         m_I = instruction & 0x0FFF;
         break;
     case 0xB000:  // Bnnn - JP V0, addr
+        m_PC = (instruction & 0x0FFF) + m_V[0];
         break;
     case 0xC000:  // Cxkk - RND Vx, byte
         break;
@@ -99,8 +121,14 @@ void Chip::ProcessInstruction(uint16_t instruction) {
     case 0xE000:
         switch (instruction & 0x00FF) {
         case 0x009E:  // Ex9E - SKP Vx
+            if (m_keyboard[m_V[(instruction & 0x0F00) >> 8]]) {
+                m_PC += 2;
+            }
             break;
         case 0x00A1:  // ExA1 - SKNP Vx
+            if (!m_keyboard[m_V[(instruction & 0x0F00) >> 8]]) {
+                m_PC += 2;
+            }
             break;
         }
         break;

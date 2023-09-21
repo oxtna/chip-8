@@ -10,6 +10,7 @@ class Chip
     void ProcessInstruction(uint16_t instruction);
 
   private:
+    std::array<bool, 16> m_keyboard;
     std::array<bool, 64 * 32> m_display;
     std::array<uint8_t, 4096> m_memory;
     std::stack<uint16_t> m_stack;
