@@ -258,17 +258,21 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             break;
         case 0x0033:  // Fx33 - LD B, Vx
             m_memory[m_I] = m_V[(instruction & 0x0F00) >> 8] / 100;
-            m_memory[m_I + 1] = (m_V[(instruction & 0x0F00) >> 8] / 10) % 10;
-            m_memory[m_I + 2] = m_V[(instruction & 0x0F00) >> 8] % 100;
+            m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + 1)] =
+                (m_V[(instruction & 0x0F00) >> 8] / 10) % 10;
+            m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + 2)] =
+                m_V[(instruction & 0x0F00) >> 8] % 100;
             break;
         case 0x0055:  // Fx55 - LD [I], Vx
             for (int i = 0; i <= (instruction & 0x0F00) >> 8; i++) {
-                m_memory[m_I + i] = m_V[i];
+                m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + i)] =
+                    m_V[i];
             }
             break;
         case 0x0065:  // Fx65 - LD Vx, [I]
             for (int i = 0; i <= (instruction & 0x0F00) >> 8; i++) {
-                m_V[i] = m_memory[m_I + i];
+                m_V[i] =
+                    m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + i)];
             }
             break;
         }
