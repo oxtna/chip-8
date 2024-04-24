@@ -1,7 +1,8 @@
 #pragma once
 #include <array>
-#include <stack>
 #include <cstdint>
+#include <random>
+#include <stack>
 
 class Chip
 {
@@ -10,6 +11,8 @@ class Chip
     void ProcessInstruction(uint16_t instruction);
 
   private:
+    std::mt19937 m_rng;
+    std::uniform_int_distribution<uint32_t> m_distribution;
     std::array<bool, 16> m_keyboard;
     std::array<bool, 64 * 32> m_display;
     std::array<uint8_t, 4096> m_memory;
