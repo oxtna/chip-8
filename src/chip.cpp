@@ -5,7 +5,104 @@ Chip::Chip()
       m_distribution(0, 255),
       m_keyboard{},
       m_display{},
-      m_memory{},
+      m_memory{
+          // 0
+          0xF0,
+          0x90,
+          0x90,
+          0x90,
+          0xF0,
+          // 1
+          0x20,
+          0x60,
+          0x20,
+          0x20,
+          0x70,
+          // 2
+          0xF0,
+          0x10,
+          0xF0,
+          0x80,
+          0xF0,
+          // 3
+          0xF0,
+          0x10,
+          0xF0,
+          0x10,
+          0xF0,
+          // 4
+          0x90,
+          0x90,
+          0xF0,
+          0x10,
+          0x10,
+          // 5
+          0xF0,
+          0x80,
+          0xF0,
+          0x10,
+          0xF0,
+          // 6
+          0xF0,
+          0x80,
+          0xF0,
+          0x90,
+          0xF0,
+          // 7
+          0xF0,
+          0x10,
+          0x20,
+          0x40,
+          0x40,
+          // 8
+          0xF0,
+          0x90,
+          0xF0,
+          0x90,
+          0xF0,
+          // 9
+          0xF0,
+          0x90,
+          0xF0,
+          0x10,
+          0xF0,
+          // A
+          0xF0,
+          0x90,
+          0xF0,
+          0x90,
+          0x90,
+          // B
+          0xE0,
+          0x90,
+          0xE0,
+          0x90,
+          0xE0,
+          // C
+          0xF0,
+          0x80,
+          0x80,
+          0x80,
+          0xF0,
+          // D
+          0xE0,
+          0x90,
+          0x90,
+          0x90,
+          0xE0,
+          // E
+          0xF0,
+          0x80,
+          0xF0,
+          0x80,
+          0xF0,
+          // F
+          0xF0,
+          0x80,
+          0xF0,
+          0x80,
+          0x80,
+      },
       m_stack{},
       m_V{},
       m_PC{},
@@ -157,7 +254,7 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             m_I += m_V[(instruction & 0x0F00) >> 8];
             break;
         case 0x0029:  // Fx29 - LD F, Vx
-            // todo: set I to location of sprite for digit in Vx
+            m_I = 5 * m_V[(instruction & 0x0F00) >> 8];
             break;
         case 0x0033:  // Fx33 - LD B, Vx
             m_memory[m_I] = m_V[(instruction & 0x0F00) >> 8] / 100;
