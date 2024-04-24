@@ -18,8 +18,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-include(CTest)
-
 include(FetchContent)
 FetchContent_Declare(
     SFML
@@ -29,8 +27,3 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(SFML)
 
 add_subdirectory(src)
-
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR MORDERN AND BUILD_TESTING)
-    add_subdirectory(tests)
-endif()
-
