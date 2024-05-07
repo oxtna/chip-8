@@ -1,9 +1,9 @@
 #include "chip.hpp"
 
-Chip::Chip()
+Chip::Chip(Keyboard& keyboard)
     : m_rng(std::random_device{}()),
       m_distribution(0, 255),
-      m_keyboard{},
+      m_keyboard(keyboard),
       m_display{},
       m_memory{
           // 0
@@ -112,6 +112,10 @@ Chip::Chip()
       m_ST{} {
 }
 
+const Chip::DisplayBuffer& Chip::GetDisplayBuffer() const {
+    return m_display;
+}
+
 void Chip::ProcessInstruction(uint16_t instruction) {
     switch (instruction & 0xF000) {
     case 0x0000:
@@ -123,19 +127,16 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             m_stack.pop();
             m_SP--;
         }
-        else {  // 0nnn - SYS addr
-            // jump to machine code routine at nnn
-            // todo: prolly ignore this
-        }
+        // SKIP: 0nnn - SYS addr
         break;
     case 0x1000:  // 1nnn - JP addr
         m_PC = instruction & 0x0FFF;
-        break;
+        return;
     case 0x2000:  // 2nnn - CALL addr
         m_SP++;
         m_stack.push(m_PC);
         m_PC = instruction & 0x0FFF;
-        break;
+        return;
     case 0x3000:  // 3xkk - SE Vx, byte
         if (m_V[(instruction & 0x0F00) >> 8] == (instruction & 0x00FF)) {
             m_PC += 2;
@@ -218,19 +219,44 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             static_cast<uint8_t>(m_distribution(m_rng) & (instruction & 0x00FF));
         break;
     case 0xD000:  // Dxyn - DRW Vx, Vy, nibble
-        // todo: read n bytes from memory starting at address I, then display those bytes
-        // as sprites at (Vx, Vy), sprites are XORed onto the existing screen, if this
-        // erases any pixels, set VF to 1, otherwise set VF to 0
+        m_VF = 0;
+        for (uint16_t byteIndex = m_I; byteIndex < m_I + (instruction & 0x000F);
+             byteIndex++) {
+            for (uint16_t bitIndex = 0; bitIndex < 8; bitIndex++) {
+                if (m_memory[byteIndex] & (0x80 >> bitIndex)) {
+                    if (m_display
+                            [(static_cast<DisplayBuffer::size_type>(
+                                  (instruction & 0x00F0) >> 4) +
+                              byteIndex) *
+                                 Width +
+                             static_cast<DisplayBuffer::size_type>(
+                                 (instruction & 0x0F00) >> 8) +
+                             bitIndex]) {
+                        m_VF = 1;
+                    }
+                    m_display
+                        [(static_cast<DisplayBuffer::size_type>(
+                              (instruction & 0x00F0) >> 4) +
+                          byteIndex) *
+                             Width +
+                         static_cast<DisplayBuffer::size_type>(
+                             (instruction & 0x0F00) >> 8) +
+                         bitIndex] ^= 1;
+                }
+            }
+        }
         break;
     case 0xE000:
         switch (instruction & 0x00FF) {
         case 0x009E:  // Ex9E - SKP Vx
-            if (m_keyboard[m_V[(instruction & 0x0F00) >> 8]]) {
+            if (m_keyboard.IsKeyPressed(
+                    static_cast<Key>(m_V[(instruction & 0x0F00) >> 8]))) {
                 m_PC += 2;
             }
             break;
         case 0x00A1:  // ExA1 - SKNP Vx
-            if (!m_keyboard[m_V[(instruction & 0x0F00) >> 8]]) {
+            if (!m_keyboard.IsKeyPressed(
+                    static_cast<Key>(m_V[(instruction & 0x0F00) >> 8]))) {
                 m_PC += 2;
             }
             break;
@@ -242,8 +268,21 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             m_V[(instruction & 0x0F00) >> 8] = m_DT;
             break;
         case 0x000A:  // Fx0A - LD Vx, K
-            // todo: wait for key press and store its value in Vx
-            break;
+        {
+            bool wasKeyPressed = false;
+            for (uint8_t i = static_cast<uint8_t>(Key::Num0);
+                 i <= static_cast<uint8_t>(Key::F);
+                 i++) {
+                if (m_keyboard.IsKeyPressed(static_cast<Key>(i))) {
+                    m_V[(instruction & 0x0F00) >> 8] = i;
+                    wasKeyPressed = true;
+                }
+            }
+            // If no key is pressed, do not increment the program counter
+            if (!wasKeyPressed) {
+                return;
+            }
+        } break;
         case 0x0015:  // Fx15 - LD DT, Vx
             m_DT = m_V[(instruction & 0x0F00) >> 8];
             break;
@@ -258,24 +297,36 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             break;
         case 0x0033:  // Fx33 - LD B, Vx
             m_memory[m_I] = m_V[(instruction & 0x0F00) >> 8] / 100;
-            m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + 1)] =
+            m_memory[static_cast<Memory::size_type>(m_I + 1)] =
                 (m_V[(instruction & 0x0F00) >> 8] / 10) % 10;
-            m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + 2)] =
+            m_memory[static_cast<Memory::size_type>(m_I + 2)] =
                 m_V[(instruction & 0x0F00) >> 8] % 100;
             break;
         case 0x0055:  // Fx55 - LD [I], Vx
             for (int i = 0; i <= (instruction & 0x0F00) >> 8; i++) {
-                m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + i)] =
-                    m_V[i];
+                m_memory[static_cast<Memory::size_type>(m_I + i)] = m_V[i];
             }
             break;
         case 0x0065:  // Fx65 - LD Vx, [I]
             for (int i = 0; i <= (instruction & 0x0F00) >> 8; i++) {
-                m_V[i] =
-                    m_memory[static_cast<std::array<uint8_t, 4096>::size_type>(m_I + i)];
+                m_V[i] = m_memory[static_cast<Memory::size_type>(m_I + i)];
             }
             break;
         }
         break;
     }
+    m_PC += 2;
+}
+
+void Chip::DecrementTimers() {
+    if (m_DT > 0) {
+        m_DT--;
+    }
+    if (m_ST > 0) {
+        m_ST--;
+    }
+}
+
+bool Chip::IsSoundPlaying() const {
+    return m_ST > 0;
 }

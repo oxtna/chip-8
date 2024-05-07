@@ -1,4 +1,5 @@
 #pragma once
+#include "keyboard.hpp"
 #include <array>
 #include <cstdint>
 #include <random>
@@ -7,15 +8,32 @@
 class Chip
 {
   public:
-    Chip();
+    static constexpr uint16_t Width = 64;
+    static constexpr uint16_t Height = 32;
+    using DisplayBuffer = std::array<bool, Width * Height>;
+    using Memory = std::array<uint8_t, 4096>;
+
+    explicit Chip(Keyboard& keyboard);
+
+    ~Chip() = default;
+
+    Chip(const Chip&) = delete;
+    Chip(Chip&&) = delete;
+
+    Chip& operator=(const Chip&) = delete;
+    Chip& operator=(Chip&&) = delete;
+
+    const DisplayBuffer& GetDisplayBuffer() const;
     void ProcessInstruction(uint16_t instruction);
+    void DecrementTimers();
+    bool IsSoundPlaying() const;
 
   private:
     std::mt19937 m_rng;
     std::uniform_int_distribution<uint32_t> m_distribution;
-    std::array<bool, 16> m_keyboard;
-    std::array<bool, 64 * 32> m_display;
-    std::array<uint8_t, 4096> m_memory;
+    Keyboard& m_keyboard;
+    DisplayBuffer m_display;
+    Memory m_memory;
     std::stack<uint16_t> m_stack;
     // general purpose registers
     union {
