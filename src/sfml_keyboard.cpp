@@ -24,5 +24,5 @@ SFMLKeyboard::SFMLKeyboard()
 
 bool SFMLKeyboard::IsKeyPressed(Key key) const {
     return sf::Keyboard::isKeyPressed(
-        m_mapping[static_cast<std::array<sf::Keyboard::Key, 16>::size_type>(key)]);
+        m_mapping[static_cast<std::array<sf::Keyboard::Key, KeyCount>::size_type>(key)]);
 }

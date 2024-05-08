@@ -1,4 +1,7 @@
 #include "chip.hpp"
+#include <iomanip>
+#include <iostream>
+#include <stdexcept>
 
 Chip::Chip(Keyboard& keyboard)
     : m_rng(std::random_device{}()),
@@ -116,6 +119,29 @@ const Chip::DisplayBuffer& Chip::GetDisplayBuffer() const {
     return m_display;
 }
 
+bool Chip::LoadProgram(std::ifstream&& file) {
+    constexpr auto MaxFileSize = MemoryCapacity - ProgramCounterStart;
+    if (file.fail()) {
+        return false;
+    }
+    file.seekg(0, std::ios::end);
+    auto size = file.tellg();
+    if (size > MaxFileSize) {
+        return false;
+    }
+    file.seekg(0, std::ios::beg);
+    file.read(
+        reinterpret_cast<char*>(m_memory.data()) + ProgramCounterStart, MaxFileSize);
+    m_PC = ProgramCounterStart;
+    return true;
+}
+
+void Chip::EmulateCycle() {
+    uint16_t instruction =
+        (m_memory[m_PC] << 8) | m_memory[static_cast<Memory::size_type>(m_PC) + 1];
+    ProcessInstruction(instruction);
+}
+
 void Chip::ProcessInstruction(uint16_t instruction) {
     switch (instruction & 0xF000) {
     case 0x0000:
@@ -123,9 +149,13 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             m_display = {};
         }
         else if (instruction == 0x00EE) {  // 00EE - RET
+            if (m_SP == 0) {
+                throw std::runtime_error("Stack underflow");
+            }
             m_PC = m_stack.top();
             m_stack.pop();
             m_SP--;
+            return;
         }
         // SKIP: 0nnn - SYS addr
         break;
@@ -133,9 +163,12 @@ void Chip::ProcessInstruction(uint16_t instruction) {
         m_PC = instruction & 0x0FFF;
         return;
     case 0x2000:  // 2nnn - CALL addr
-        m_SP++;
-        m_stack.push(m_PC);
+        if (m_SP == 16) {
+            throw std::runtime_error("Stack overflow");
+        }
+        m_stack.push(m_PC + 2);
         m_PC = instruction & 0x0FFF;
+        m_SP++;
         return;
     case 0x3000:  // 3xkk - SE Vx, byte
         if (m_V[(instruction & 0x0F00) >> 8] == (instruction & 0x00FF)) {
@@ -173,21 +206,24 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             m_V[(instruction & 0x0F00) >> 8] ^= m_V[(instruction & 0x00F0) >> 4];
             break;
         case 0x0004:  // 8xy4 - ADD Vx, Vy
-        {
-            unsigned int sum =
-                m_V[(instruction & 0x0F00) >> 8] + m_V[(instruction & 0x00F0) >> 4];
-            m_V[(instruction & 0x0F00) >> 8] = sum;
-            m_V[0xF] = (sum & 0x0100) >> 8;
-        } break;
+            if (m_V[(instruction & 0x0F00) >> 8] >
+                0xFF - m_V[(instruction & 0x00F0) >> 4]) {
+                m_VF = 1;
+            }
+            else {
+                m_VF = 0;
+            }
+            m_V[(instruction & 0x0F00) >> 8] += m_V[(instruction & 0x00F0) >> 4];
+            break;
         case 0x0005:  // 8xy5 - SUB Vx, Vy
         {
             bool borrowed =
                 m_V[(instruction & 0x0F00) >> 8] < m_V[(instruction & 0x00F0) >> 4];
             m_V[(instruction & 0x0F00) >> 8] -= m_V[(instruction & 0x00F0) >> 4];
-            m_V[0xF] = borrowed ? 0 : 1;
+            m_VF = borrowed ? 0 : 1;
         } break;
         case 0x0006:  // 8xy6 - SHR Vx, Vy
-            m_V[0xF] = m_V[(instruction & 0x0F00) >> 8] & 0x01;
+            m_VF = m_V[(instruction & 0x0F00) >> 8] & 0x01;
             m_V[(instruction & 0x0F00) >> 8] >>= 1;
             break;
         case 0x0007:  // 8xy7 - SUBN Vx, Vy
@@ -195,10 +231,10 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             bool borrowed =
                 m_V[(instruction & 0x0F00) >> 8] > m_V[(instruction & 0x00F0) >> 4];
             m_V[(instruction & 0x00F0) >> 4] -= m_V[(instruction & 0x0F00) >> 8];
-            m_V[0xF] = borrowed ? 0 : 1;
+            m_VF = borrowed ? 0 : 1;
         } break;
         case 0x000E:  // 8xyE - SHL Vx, Vy
-            m_V[0xF] = (m_V[(instruction & 0x0F00) >> 8] & 0x80) >> 7;
+            m_VF = (m_V[(instruction & 0x0F00) >> 8] & 0x80) >> 7;
             m_V[(instruction & 0x0F00) >> 8] <<= 1;
             break;
         }
@@ -219,33 +255,27 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             static_cast<uint8_t>(m_distribution(m_rng) & (instruction & 0x00FF));
         break;
     case 0xD000:  // Dxyn - DRW Vx, Vy, nibble
+    {
         m_VF = 0;
-        for (uint16_t byteIndex = m_I; byteIndex < m_I + (instruction & 0x000F);
-             byteIndex++) {
+        const auto x = m_V[(instruction & 0x0F00) >> 8];
+        const auto y = m_V[(instruction & 0x00F0) >> 4];
+        for (uint16_t byteIndex = 0; byteIndex < (instruction & 0x000F); byteIndex++) {
             for (uint16_t bitIndex = 0; bitIndex < 8; bitIndex++) {
-                if (m_memory[byteIndex] & (0x80 >> bitIndex)) {
-                    if (m_display
-                            [(static_cast<DisplayBuffer::size_type>(
-                                  (instruction & 0x00F0) >> 4) +
-                              byteIndex) *
-                                 Width +
-                             static_cast<DisplayBuffer::size_type>(
-                                 (instruction & 0x0F00) >> 8) +
-                             bitIndex]) {
+                auto source =
+                    (m_memory[static_cast<Memory::size_type>(m_I) + byteIndex] >>
+                     (7 - bitIndex)) &
+                    0x01;
+                if (source) {
+                    auto destinationIndex =
+                        (x + bitIndex) % Width + (y + byteIndex) % Height * Width;
+                    if (m_display[destinationIndex]) {
                         m_VF = 1;
                     }
-                    m_display
-                        [(static_cast<DisplayBuffer::size_type>(
-                              (instruction & 0x00F0) >> 4) +
-                          byteIndex) *
-                             Width +
-                         static_cast<DisplayBuffer::size_type>(
-                             (instruction & 0x0F00) >> 8) +
-                         bitIndex] ^= 1;
+                    m_display[destinationIndex] ^= true;
                 }
             }
         }
-        break;
+    } break;
     case 0xE000:
         switch (instruction & 0x00FF) {
         case 0x009E:  // Ex9E - SKP Vx
@@ -296,24 +326,26 @@ void Chip::ProcessInstruction(uint16_t instruction) {
             m_I = 5 * m_V[(instruction & 0x0F00) >> 8];
             break;
         case 0x0033:  // Fx33 - LD B, Vx
-            m_memory[m_I] = m_V[(instruction & 0x0F00) >> 8] / 100;
-            m_memory[static_cast<Memory::size_type>(m_I + 1)] =
-                (m_V[(instruction & 0x0F00) >> 8] / 10) % 10;
-            m_memory[static_cast<Memory::size_type>(m_I + 2)] =
-                m_V[(instruction & 0x0F00) >> 8] % 100;
-            break;
+        {
+            const auto x = m_V[(instruction & 0x0F00) >> 8];
+            m_memory[m_I] = x / 100;
+            m_memory[static_cast<Memory::size_type>(m_I) + 1] = (x / 10) % 10;
+            m_memory[static_cast<Memory::size_type>(m_I) + 2] = x % 10;
+        } break;
         case 0x0055:  // Fx55 - LD [I], Vx
             for (int i = 0; i <= (instruction & 0x0F00) >> 8; i++) {
-                m_memory[static_cast<Memory::size_type>(m_I + i)] = m_V[i];
+                m_memory[static_cast<Memory::size_type>(m_I) + i] = m_V[i];
             }
             break;
         case 0x0065:  // Fx65 - LD Vx, [I]
             for (int i = 0; i <= (instruction & 0x0F00) >> 8; i++) {
-                m_V[i] = m_memory[static_cast<Memory::size_type>(m_I + i)];
+                m_V[i] = m_memory[static_cast<Memory::size_type>(m_I) + i];
             }
             break;
         }
         break;
+    default:
+        throw std::runtime_error("Unknown instruction");
     }
     m_PC += 2;
 }

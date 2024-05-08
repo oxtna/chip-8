@@ -19,5 +19,5 @@ class SFMLKeyboard final : public Keyboard
     bool IsKeyPressed(Key key) const override;
 
   private:
-    std::array<sf::Keyboard::Key, 16> m_mapping;
+    std::array<sf::Keyboard::Key, KeyCount> m_mapping;
 };

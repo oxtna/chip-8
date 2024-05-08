@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
 enum class Key : uint8_t {
@@ -24,6 +25,7 @@ enum class Key : uint8_t {
 class Keyboard
 {
   public:
+    static constexpr std::size_t KeyCount = 16;
     virtual bool IsKeyPressed(Key key) const = 0;
 
     Keyboard() = default;

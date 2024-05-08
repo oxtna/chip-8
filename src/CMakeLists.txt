@@ -1,23 +1,19 @@
-file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/*.hpp")
+include_directories(.)
 
-add_executable(Chip8_EXE main.cpp chip.cpp sfml_keyboard.cpp ${HEADER_LIST})
+add_library(Chip8 STATIC chip.cpp chip.hpp keyboard.hpp)
+target_compile_features(Chip8 PUBLIC cxx_std_17)
+
+add_executable(Chip8_EXE main.cpp sfml_keyboard.cpp sfml_keyboard.hpp)
 
 set_property(TARGET Chip8_EXE PROPERTY OUTPUT_NAME Chip8)
 
-target_include_directories(Chip8_EXE PUBLIC ${PROJECT_SOURCE_DIR}/src)
-
 target_compile_features(Chip8_EXE PUBLIC cxx_std_17)
 
+target_link_libraries(Chip8_EXE PRIVATE Chip8)
 target_link_libraries(Chip8_EXE PRIVATE sfml-graphics)
 target_link_libraries(Chip8_EXE PRIVATE sfml-window)
 target_link_libraries(Chip8_EXE PRIVATE sfml-audio)
 target_link_libraries(Chip8_EXE PRIVATE sfml-system)
-
-source_group(
-    TREE ${PROJECT_SOURCE_DIR}/src
-    PREFIX "Header Files"
-    FILES ${HEADER_LIST}
-)
 
 if(WIN32)
     add_custom_command(
@@ -38,3 +34,5 @@ if(WIN32)
 endif()
 
 configure_file(${PROJECT_SOURCE_DIR}/audio/beep.wav ${CMAKE_CURRENT_BINARY_DIR}/beep.wav COPYONLY)
+
+add_subdirectory(tests)

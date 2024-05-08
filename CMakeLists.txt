@@ -18,6 +18,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+include(CTest)
+
 include(FetchContent)
 FetchContent_Declare(
     SFML

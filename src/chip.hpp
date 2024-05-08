@@ -2,16 +2,21 @@
 #include "keyboard.hpp"
 #include <array>
 #include <cstdint>
+#include <fstream>
 #include <random>
 #include <stack>
 
 class Chip
 {
   public:
+    static constexpr uint16_t ProgramCounterStart = 512;
     static constexpr uint16_t Width = 64;
     static constexpr uint16_t Height = 32;
     using DisplayBuffer = std::array<bool, Width * Height>;
-    using Memory = std::array<uint8_t, 4096>;
+    static constexpr std::size_t MemoryCapacity = 4096;
+    using Memory = std::array<uint8_t, MemoryCapacity>;
+    static constexpr std::size_t StackCapacity = 16;
+    using Stack = std::stack<uint16_t>;
 
     explicit Chip(Keyboard& keyboard);
 
@@ -24,17 +29,19 @@ class Chip
     Chip& operator=(Chip&&) = delete;
 
     const DisplayBuffer& GetDisplayBuffer() const;
+    bool LoadProgram(std::ifstream&& file);
+    void EmulateCycle();
     void ProcessInstruction(uint16_t instruction);
     void DecrementTimers();
     bool IsSoundPlaying() const;
 
-  private:
+  protected:
     std::mt19937 m_rng;
     std::uniform_int_distribution<uint32_t> m_distribution;
     Keyboard& m_keyboard;
     DisplayBuffer m_display;
     Memory m_memory;
-    std::stack<uint16_t> m_stack;
+    Stack m_stack;
     // general purpose registers
     union {
         struct
